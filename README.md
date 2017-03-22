@@ -1,2 +1,2 @@
-﻿# Grad-Project Source Codes Are likely to be written in this repository
+﻿# Grad-Project source codes are likely to be written in this repository
  
