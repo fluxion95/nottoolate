@@ -1,4 +1,8 @@
-All copyrights of this project's source codes remain to the team members of "NotTooLate"
+All copyrights of this project's source codes remain to the teammates of "NotTooLate", 
+Computer Engineering Department, Korea Polytechnic University.
+
 Anyone is allowed to share our work, but not to moderate any of them.
+
 Thank you.
+
 03/22/2017 DarylCho
