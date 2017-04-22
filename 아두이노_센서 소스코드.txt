@@ -1,0 +1,130 @@
+include <SPI.h>
+#include <Adafruit_VS1053.h>
+#include <SD.h>
+#define SHIELD_RESET  -1
+#define SHIELD_CS     7
+#define SHIELD_DCS    6
+#define CARDCS 4
+#define DREQ 3
+Adafruit_VS1053_FilePlayer musicPlayer =
+  Adafruit_VS1053_FilePlayer(SHIELD_RESET, SHIELD_CS, SHIELD_DCS, DREQ, CARDCS);
+//MP3 모듈을 사용하기위한 선언 (MP3 판매처에서 라이브러리 제공)
+
+char recvChar;//블루투스로 수신받은 데이터를 저장할 변수
+int send_count;//블루투스로 데이터를 보내기위한 카운트 변수
+
+#include <dht11.h>
+dht11 DHT11;
+#define DHT11PIN 22//온도센서는 아두이노 22번핀 사용
+
+#include <Servo.h>
+Servo myservo;//서보모터 사용
+
+int sound_sensor;//사운드 감지값을 저장할 변수
+int sound_count;//사운드센서 감지 카운트 변수
+int h;//현재 습도값을 저장할 변수
+int t;//현재 온도값을 저장할 변수
+
+int mp3_play = 0;//음악 재생 여부를 저장할 변수 (0 정지, 1 플레이)
+
+
+
+void setup() {//아두이노는 크게 셋업과 루프가 있다. 전원이 인가되면 셋업이 1회 실행하고 루프가 무한반복 한다.
+  Serial.begin(9600);
+  Serial3.begin(9600);//HC-06  블루투스는 아두이노 메가 시리얼3번 rx tx핀을 이용
+
+  Serial.println("Adafruit VS1053 Simple Test");
+  if (! musicPlayer.begin()) {//만약 MP3 쉴드가 감지가 안되면
+    Serial.println(F("Couldn't find VS1053, do you have the right pins defined?"));
+    while (1);
+  }
+  Serial.println(F("VS1053 found"));
+  SD.begin(CARDCS);
+  musicPlayer.setVolume(20, 20);
+  musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);
+  //MP3쉴드 볼륨조절및 기타 설정
+
+  myservo.attach(23);//서보모터는 아두이노 23번핀 사용
+  myservo.write(90);//서보모터 정지 (90 = 정지, 90보다 작으면 왼쪽 회전, 90보다 크면 오른쪽 회전)
+  delay(1000);//1초 휴식
+}
+
+void loop() {//셋업1회 실행후 무한반복
+
+  sound_sensor  = analogRead(A8);//A8번에 연결된 사운드 센서값을 받아서 해당 변수에 저장
+  if (sound_sensor >= 400) {//센서값이 400이거나 400보다 크면
+    Serial.print("sound_sensor: ");
+    Serial.println(sound_sensor);//센서값을 시리얼모니터로 출력해주고
+    sound_count++;//sound_count 변수값을 1 증가시킨다
+    if (sound_count >= 3) {//sound_count값이 3이거나 3보다크면 아기가 운다고 가정한다.
+      sound_count = 0;//sound_count값 초기화 해주고
+      Serial3.print("$");//블루투스로 $이라는 데이터 전송
+    }
+  } else {//센서값이 400보다 작으면
+    sound_count = 0;//sound_count값 초기화
+  }
+
+  send_count++;//send_count 변수값을 1 증가시킨다.
+  if (send_count >= 100) {//만약 send_count값이 100이거나 100보다 크면
+    send_count = 0;//send_count값 초기화
+
+    if (mp3_play == 1) {//만약 mp3_play 변수값이 1이라면
+      if (musicPlayer.stopped()) {//만약 음악이 재생중이지 않으면
+        musicPlayer.startPlayingFile("mp1.mp3");//sd카드에 들어있는 mp1.mp3 파일을 재생시킨다
+        delay(200);
+      }
+    }
+
+    int chk = DHT11.read(DHT11PIN);
+    t = (int)DHT11.temperature;//현재 온도값을 받아와서 해당 변수에 저장
+    h = (int)DHT11.humidity;//현재 습도값을 받아와서 해당 변수에 저장
+
+    Serial.print("Temperature: ");
+    Serial.print(t);
+    Serial.print("     Humidity: ");
+    Serial.println(h);//시리얼 모니터로 출력해준다.
+    
+    String s = "@" + (String)t + "@" + (String)h + "@#";
+    Serial3.print(s);// 블루투스로 해당 데이터 전송 ( @온도값@습도값@# )
+                      // 안드로이드는 @이라는 데이터가 들어오면 데이터를 쌓고 
+                      // #라는 데이터가 들어오면 데이터가 모두 들어온걸로 판단한다
+                      // 그리고 @사이 값들을 파싱해서 원하는 데이터를 가져간다
+  }
+
+
+  if (Serial3.available()) {//블루투스 신호가 들어오면
+    recvChar = Serial3.read();//recvChar 변수에 들어온 신호를 저장
+    Serial.println(recvChar);//시리얼 모니터에 출력
+    switch (recvChar) {//스위치 문
+      case'1'://만약 recvChar 값이 1이면
+        musicPlayer.stopPlaying();//음악을 멈추고
+        mp3_play = 1;//해당 변수 1로 바꾼다
+        break;
+
+      case'2'://만약 recvChar 값이 2이면
+        musicPlayer.stopPlaying();//음악을 멈추고
+        mp3_play = 0;//해당 변수 0으로 바꾼다
+        break;
+
+      case'3':
+        myservo.write(100);//서보모터 오른쪽으로 회전
+        break;
+
+      case'4':
+        myservo.write(90);//서보모터 정지
+        break;
+
+      case'5':
+        myservo.write(100);//서보모터 오른쪽으로 회전
+        mp3_play = 1;//해당 변수 1로 바꾼다
+        break;
+
+      case'6':
+        myservo.write(90);//서보모터 정지
+        musicPlayer.stopPlaying();//음악 정지
+        mp3_play = 0;//해당 변수 0으로 바꾼다
+        break;
+    }
+  }
+  delay(10);//0.01초 휴식
+}
